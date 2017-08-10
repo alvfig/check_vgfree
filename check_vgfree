@@ -12,7 +12,7 @@ import sys
 
 
 
-def main():
+def parsecmdline():
     # Parse command line options.
     optionparser = optparse.OptionParser()
     optionparser.add_option("-c", "--critical", type="int",
@@ -27,6 +27,50 @@ def main():
         help="% warning limit")
     optionparser.set_defaults(critical=0, cp=0, warning=0, wp=0, vg="vg0")
     options, args = optionparser.parse_args()
+    return options, args
+
+
+
+def pickvgspace(vg):
+    # Pick free space on volume group.
+    command = [command, "--noheadings", "--nosuffix",
+        "--options=vg_size,vg_free", "--units=g", vg]
+    environment = {"LANG": "C"}
+    process = subprocess.Popen(command, stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, env=environment)
+    output, error = process.communicate()
+    if 0 < process.returncode:
+        error = error.split('\n')[0].strip()
+        print "UNDEFINED", "-", error,
+        sys.exit(3)
+    size, free = [float(x) for x in output.split()]
+    return size, free
+
+
+
+def checklimits(free, percent, vg, critical, cp, warning, wp):
+    # Check the limits.
+    if '2.6' <= platform.python_version():
+        result = "- {}GB ({}%) free on volume group {}".format(free,
+            percent, vg)
+    else:
+        result = "- %gGB (%g%%) free on volume group %s" % (free,
+            percent, vg)
+    if free < critical or 0 < percent < cp:
+        print "CRITICAL", result
+        sys.exit(2)
+    elif free < warning or 0 < percent < wp:
+        print "WARNING", result
+        sys.exit(1)
+    else:
+        print "OK", result
+        sys.exit(0)
+
+
+
+def main():
+    # Parse command line options.
+    options, args = parsecmdline()
 
     # Pick vgs command.
     command = "/sbin/vgs"
@@ -37,35 +81,12 @@ def main():
             sys.exit(3)
 
     # Pick free space on volume group.
-    command = [command, "--noheadings", "--nosuffix",
-        "--options=vg_size,vg_free", "--units=g", options.vg]
-    environment = {"LANG": "C"}
-    process = subprocess.Popen(command, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, env=environment)
-    output, error = process.communicate()
-    if 0 < process.returncode:
-        error = error.split('\n')[0].strip()
-        print "UNDEFINED", "-", error,
-        sys.exit(3)
-    size, free = [float(x) for x in output.split()]
+    size, free = pickvgspace(options.vg)
     percent = 100 * free / size
 
     # Check the limits.
-    if '2.6' <= platform.python_version():
-        result = "- {}GB ({}%) free on volume group {}".format(free,
-            percent, options.vg)
-    else:
-        result = "- %gGB (%g%%) free on volume group %s" % (free,
-            percent, options.vg)
-    if free < options.critical or 0 < percent < options.cp:
-        print "CRITICAL", result
-        sys.exit(2)
-    elif free < options.warning or 0 < percent < options.wp:
-        print "WARNING", result
-        sys.exit(1)
-    else:
-        print "OK", result
-        sys.exit(0)
+    checklimits(free, percent, options.vg, options.critical, options.cp,
+        options.warning, options.wp)
 
 
 

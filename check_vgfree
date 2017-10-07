@@ -1,71 +1,115 @@
 #!/usr/bin/python
-# check_vgfree
-# Nagios plugin to check free space on LVM volume group.
+# check_vgfree - Nagios plugin to check free space on LVM volume group
 
 
 
 import optparse
 import os
-import platform
 import subprocess
 import sys
 
 
 
-def main():
-    # Parse command line options.
-    optionparser = optparse.OptionParser()
-    optionparser.add_option("-c", "--critical", type="int",
+# Subclass to return code 3 at error.
+class OptionParser(optparse.OptionParser):
+    def error(self, msg=None):
+        self.print_usage(sys.stderr)
+        self.exit(3, "%s: error: %s\n" % (self.get_prog_name(), msg))
+
+
+
+class NagiosStatus(Exception):
+    Label = ['OK', 'WARNING', 'CRITICAL', 'UNDEFINED']
+
+    def __init__(self, code, message):
+        self.code = code
+        self.message = message
+
+    def __str__(self):
+        return "%s - %s" % (NagiosStatus.Label[self.code], self.message)
+
+    def returnStatus(self):
+        print self
+        sys.exit(self.code)
+
+
+
+def parsecmdline():
+    "Parse command line options."
+    usage = 'Usage: %prog [options]\n  try: %prog --help'
+    optionparser = OptionParser(usage)
+    optionparser.add_option("-c", "--critical", type="float",
         help="critical limit in GB")
     optionparser.add_option("-C", "--critical-percent", type="float", dest="cp",
         help="% critical limit")
     optionparser.add_option("-g", "--volume-group", dest="vg",
         help="volume group to check")
-    optionparser.add_option("-w", "--warning", type="int",
+    optionparser.add_option("-w", "--warning", type="float",
         help="warning limit in GB")
     optionparser.add_option("-W", "--warning-percent", type="float", dest="wp",
         help="% warning limit")
     optionparser.set_defaults(critical=0, cp=0, warning=0, wp=0, vg="vg0")
     options, args = optionparser.parse_args()
+    return options
 
-    # Pick vgs command.
+
+
+def pickvgscommand():
+    "Pick vgs command path"
     command = "/sbin/vgs"
     if not os.path.isfile(command):
         command = "/usr" + command
         if not os.path.isfile(command):
-            print "UNDEFINED", "-", "vgs command not found"
-            sys.exit(3)
+            msg = 'vgs command not found (is lvm2 package installed?)'
+            raise NagiosStatus(3, msg)
+    return command
 
-    # Pick free space on volume group.
+
+
+def pickvgspace(vg):
+    "Pick free space on volume group."
+    command = pickvgscommand()
     command = [command, "--noheadings", "--nosuffix",
-        "--options=vg_size,vg_free", "--units=g", options.vg]
+        "--options=vg_size,vg_free", "--units=g", vg]
     environment = {"LANG": "C"}
     process = subprocess.Popen(command, stdout=subprocess.PIPE,
         stderr=subprocess.PIPE, env=environment)
     output, error = process.communicate()
     if 0 < process.returncode:
         error = error.split('\n')[0].strip()
-        print "UNDEFINED", "-", error,
-        sys.exit(3)
+        raise NagiosStatus(3, error)
     size, free = [float(x) for x in output.split()]
+    return size, free
+
+
+
+def checkstatus(free, percent, vg, critical, cp, warning, wp):
+    "Check the limits."
+    result = "%gGB (%g%%) free on volume group %s" % (free, percent, vg)
+    if free < critical or 0 < percent < cp:
+        return NagiosStatus(2, result)
+    elif free < warning or 0 < percent < wp:
+        return NagiosStatus(1, result)
+    else:
+        return NagiosStatus(0, result)
+
+
+
+def main():
+    # Parse command line options.
+    options = parsecmdline()
+
+    # Pick free space on volume group.
+    try:
+        size, free = pickvgspace(options.vg)
+    except NagiosStatus, ns:
+        ns.returnStatus()
     percent = 100 * free / size
 
     # Check the limits.
-    if '2.6' <= platform.python_version():
-        result = "- {}GB ({}%) free on volume group {}".format(free,
-            percent, options.vg)
-    else:
-        result = "- %gGB (%g%%) free on volume group %s" % (free,
-            percent, options.vg)
-    if free < options.critical or 0 < percent < options.cp:
-        print "CRITICAL", result
-        sys.exit(2)
-    elif free < options.warning or 0 < percent < options.wp:
-        print "WARNING", result
-        sys.exit(1)
-    else:
-        print "OK", result
-        sys.exit(0)
+    ns = checkstatus(free, percent, options.vg, options.critical, options.cp,
+        options.warning, options.wp)
+    ns.returnStatus()
 
 
 

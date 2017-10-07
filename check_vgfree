@@ -10,7 +10,7 @@ import sys
 
 
 
-# Override class to return code 3 at error.
+# Subclass to return code 3 at error.
 class OptionParser(optparse.OptionParser):
     def error(self, msg=None):
         self.print_usage(sys.stderr)

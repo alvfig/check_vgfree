@@ -10,13 +10,16 @@ Usage: check_vgfree [options]
 Options:
   -h, --help            show this help message and exit
   -c CRITICAL, --critical=CRITICAL
-                        critical limit in GB
+                        critical size limit
   -C CP, --critical-percent=CP
                         % critical limit
   -g VG, --volume-group=VG
                         volume group to check
   -w WARNING, --warning=WARNING
-                        warning limit in GB
+                        warning size limit
   -W WP, --warning-percent=WP
                         % warning limit
+  --units=UNIT          size in these units: (b)ytes, (k)ilobytes,
+                        (m)egabytes, *(g)igabytes (*DEFAULT), (t)erabytes,
+                        (p)etabytes, (e)xabytes
 ```

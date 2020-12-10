@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # check_vgfree - Nagios plugin to check free space on LVM volume group
 
 
@@ -29,7 +29,7 @@ class NagiosStatus(Exception):
         return "%s - %s" % (NagiosStatus.Label[self.code], self.message)
 
     def returnStatus(self):
-        print self
+        print(self)
         sys.exit(self.code)
 
 
@@ -106,13 +106,21 @@ def main():
     # Pick free space on volume group.
     try:
         size, free = pickvgspace(options.vg, options.unit)
-    except NagiosStatus, ns:
+    except NagiosStatus as ns:
         ns.returnStatus()
     percent = 100 * free / size
 
     # Check the limits.
-    ns = checkstatus(free, percent, options.vg, options.critical, options.cp,
-        options.warning, options.wp, options.unit)
+    ns = checkstatus(
+        free,
+        percent,
+        options.vg,
+        options.critical,
+        options.cp,
+        options.warning,
+        options.wp,
+        options.units
+    )
     ns.returnStatus()
 
 

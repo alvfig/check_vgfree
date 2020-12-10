@@ -90,9 +90,9 @@ def checkstatus(free, percent, vg, critical, cp, warning, wp, unit):
     "Check the limits."
     result = "%g%sB (%g%%) free on volume group %s" % (free, unit.upper(),
         percent, vg)
-    if free < critical or 0 < percent < cp:
+    if 0 < critical and free <= critical or 0 < cp and percent <= cp:
         return NagiosStatus(2, result)
-    elif free < warning or 0 < percent < wp:
+    elif 0 < warning and free <= warning or 0 < wp and percent <= wp:
         return NagiosStatus(1, result)
     else:
         return NagiosStatus(0, result)

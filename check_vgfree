@@ -119,7 +119,7 @@ def main():
         options.cp,
         options.warning,
         options.wp,
-        options.units
+        options.unit
     )
     ns.returnStatus()
 
